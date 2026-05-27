@@ -1,6 +1,6 @@
 import os
 import sys
-import os
+import subprocess
 sys.path.insert(0, os.path.dirname(__file__))
 
 from dotenv import load_dotenv
@@ -76,8 +76,10 @@ def main():
             # Patch the dependency file
             bump_version_in_file(pkg["source_file"], pkg["name"], pkg["version"], safe_version)
 
-            # Commit and push
-            create_branch_and_commit(branch, pkg["source_file"], pkg["name"], safe_version)
+            # Commit and push — skip if branch already exists
+            if not create_branch_and_commit(branch, pkg["source_file"], pkg["name"], safe_version):
+                subprocess.run(["git", "checkout", "main"], check=False)
+                continue
 
             # Open PR
             title = f"🔐 Security Fix: {pkg['name']} {pkg['version']} → {safe_version} [{severity}]"

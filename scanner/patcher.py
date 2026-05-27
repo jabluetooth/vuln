@@ -27,8 +27,20 @@ def git_setup():
     subprocess.run(["git", "config", "user.name", "Vuln Auto-Patcher Bot"], check=True)
 
 
-def create_branch_and_commit(branch_name: str, filepath: str, package_name: str, new_version: str):
-    """Create a new git branch, stage changes, and commit."""
+def branch_exists_on_remote(branch_name: str) -> bool:
+    result = subprocess.run(
+        ["git", "ls-remote", "--heads", "origin", branch_name],
+        capture_output=True, text=True
+    )
+    return branch_name in result.stdout
+
+
+def create_branch_and_commit(branch_name: str, filepath: str, package_name: str, new_version: str) -> bool:
+    """Create a new git branch, stage changes, and commit. Returns False if branch already exists."""
+    if branch_exists_on_remote(branch_name):
+        print(f"[SKIP] Branch '{branch_name}' already exists — PR likely already open.")
+        return False
+
     subprocess.run(["git", "checkout", "-b", branch_name], check=True)
     subprocess.run(["git", "add", filepath], check=True)
     subprocess.run(
@@ -36,6 +48,7 @@ def create_branch_and_commit(branch_name: str, filepath: str, package_name: str,
         check=True
     )
     subprocess.run(["git", "push", "origin", branch_name], check=True)
+    return True
 
 
 def create_pull_request(repo: str, branch_name: str, title: str, body: str, token: str) -> str | None:
