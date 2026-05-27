@@ -2,8 +2,8 @@ name: Vulnerability Auto-Patcher
 
 on:
   schedule:
-    - cron: '0 9 * * 1' # Every Monday at 9AM
-  workflow_dispatch: # Manual trigger
+    - cron: '0 9 * * 1' # Every Monday at 9AM UTC
+  workflow_dispatch:
 
 jobs:
   scan-and-patch:
@@ -20,6 +20,14 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
       - name: Install dependencies
         run: pip install -r requirements.txt
 
@@ -29,4 +37,6 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           REPO_NAME: ${{ github.repository }}
           MIN_SEVERITY: MODERATE
+          DEFAULT_BRANCH: main
+          MAX_PRS_PER_RUN: '10'
         run: python scanner/main.py
