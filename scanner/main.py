@@ -33,6 +33,7 @@ def main():
         return
 
     print(f"[SCAN] Starting vulnerability scan for {REPO_NAME}...")
+    print(f"[CONFIG] MIN_SEVERITY = {MIN_SEVERITY}")
     packages = get_all_packages()
 
     if not packages:
