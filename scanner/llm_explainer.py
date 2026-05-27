@@ -34,7 +34,13 @@ Use a professional but friendly tone. Format as plain text, no bullet points."""
         f"gemini-2.5-flash:generateContent?key={api_key}"
     )
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
-    response = requests.post(url, json=payload, timeout=30)
-    if not response.ok:
-        raise ValueError(f"Gemini API error {response.status_code}: {response.text}")
-    return response.json()["candidates"][0]["content"]["parts"][0]["text"]
+
+    for attempt in range(3):
+        response = requests.post(url, json=payload, timeout=30)
+        if response.status_code in (429, 503) and attempt < 2:
+            import time
+            time.sleep(15 * (attempt + 1))
+            continue
+        if not response.ok:
+            raise ValueError(f"Gemini API error {response.status_code}: {response.text}")
+        return response.json()["candidates"][0]["content"]["parts"][0]["text"]
