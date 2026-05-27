@@ -52,46 +52,51 @@ def main():
 
         print(f"[VULN] {pkg['name']}@{pkg['version']} — {len(vulns)} vulnerability(s) found")
 
+        # Pick the single highest safe version across all CVEs for this package
+        best_vuln = None
+        best_version = None
         for vuln in vulns:
             safe_version = get_safe_version(vuln)
             severity = get_severity(vuln)
-            cve_id = vuln.get("id", "UNKNOWN")
-
-            if not safe_version:
-                print(f"  [SKIP] {cve_id}: No fixed version available yet.")
+            if not safe_version or not should_patch(severity):
                 continue
+            if best_version is None or safe_version > best_version:
+                best_version = safe_version
+                best_vuln = vuln
 
-            if not should_patch(severity):
-                print(f"  [SKIP] {cve_id}: Severity '{severity}' below threshold '{MIN_SEVERITY}'.")
-                continue
+        if not best_vuln:
+            print(f"  [SKIP] No patchable vulnerabilities above threshold.")
+            continue
 
-            print(f"  [FIX] {cve_id} ({severity}): {pkg['name']} → v{safe_version}")
+        severity = get_severity(best_vuln)
+        cve_id = best_vuln.get("id", "UNKNOWN")
+        print(f"  [FIX] {cve_id} ({severity}): {pkg['name']} → v{best_version}")
 
-            # Generate AI explanation
-            explanation = explain_vulnerability(pkg["name"], vuln, safe_version)
+        # Generate AI explanation
+        explanation = explain_vulnerability(pkg["name"], best_vuln, best_version)
 
-            # Create branch name
-            branch = f"fix/vuln-{pkg['name']}-{safe_version}".replace(".", "-").lower()
+        # Create branch name
+        branch = f"fix/vuln-{pkg['name']}-{best_version}".replace(".", "-").lower()
 
-            # Patch the dependency file
-            bump_version_in_file(pkg["source_file"], pkg["name"], pkg["version"], safe_version)
+        # Patch the dependency file
+        bump_version_in_file(pkg["source_file"], pkg["name"], pkg["version"], best_version)
 
-            # Commit and push — skip if branch already exists
-            if not create_branch_and_commit(branch, pkg["source_file"], pkg["name"], safe_version):
-                subprocess.run(["git", "checkout", "main"], check=False)
-                continue
+        # Commit and push — skip if branch already exists
+        if not create_branch_and_commit(branch, pkg["source_file"], pkg["name"], best_version):
+            subprocess.run(["git", "checkout", "main"], check=False)
+            continue
 
-            # Open PR
-            title = f"🔐 Security Fix: {pkg['name']} {pkg['version']} → {safe_version} [{severity}]"
-            create_pull_request(
-                repo=REPO_NAME,
-                branch_name=branch,
-                title=title,
-                body=explanation,
-                token=GITHUB_TOKEN
-            )
+        # Open PR
+        title = f"Security Fix: {pkg['name']} {pkg['version']} → {best_version} [{severity}]"
+        create_pull_request(
+            repo=REPO_NAME,
+            branch_name=branch,
+            title=title,
+            body=explanation,
+            token=GITHUB_TOKEN
+        )
 
-            patched_count += 1
+        patched_count += 1
 
     print(f"\n[DONE] Scan complete. {patched_count} patch PR(s) opened.")
 
