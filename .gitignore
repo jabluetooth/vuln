@@ -1,4 +1,5 @@
 .env
+ROADMAP.md
 __pycache__/
 *.pyc
 *.pyo
