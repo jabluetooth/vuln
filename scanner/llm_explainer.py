@@ -1,11 +1,11 @@
 import os
-from google import genai
+import requests
 
 
 def explain_vulnerability(package_name: str, vuln: dict, safe_version: str) -> str:
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not api_key:
-        raise ValueError("[ERROR] GEMINI_API_KEY secret is missing or empty in GitHub Actions.")
+        raise ValueError("[ERROR] GEMINI_API_KEY secret is missing or empty.")
 
     vuln_summary = vuln.get("summary", "No summary available.")
     cve_id = vuln.get("id", "Unknown ID")
@@ -29,9 +29,11 @@ Write a clear, developer-friendly GitHub Pull Request description (5-7 sentences
 
 Use a professional but friendly tone. Format as plain text, no bullet points."""
 
-    client = genai.Client(api_key=api_key)
-    response = client.models.generate_content(
-        model="gemini-1.5-flash",
-        contents=prompt,
+    url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"gemini-1.5-flash:generateContent?key={api_key}"
     )
-    return response.text
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    response = requests.post(url, json=payload, timeout=30)
+    response.raise_for_status()
+    return response.json()["candidates"][0]["content"]["parts"][0]["text"]
