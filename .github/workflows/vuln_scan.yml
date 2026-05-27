@@ -37,6 +37,10 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           REPO_NAME: ${{ github.repository }}
           MIN_SEVERITY: MODERATE
-          DEFAULT_BRANCH: main
           MAX_PRS_PER_RUN: '10'
-        run: python scanner/main.py
+          # Labels added to every security PR (comma-separated)
+          PR_LABELS: security,dependencies
+          # GitHub usernames to request as reviewers (comma-separated, leave blank for none)
+          PR_REVIEWERS: ''
+          # Set to 'true' to auto-merge patch-level bumps when CI passes
+          AUTO_MERGE_PATCH: 'false'

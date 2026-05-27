@@ -1,33 +1,51 @@
 import os
+import time
 import requests
 
 
-def explain_vulnerability(package_name: str, vuln: dict, safe_version: str) -> str:
+def explain_vulnerability(package_name: str, vulns: list[dict], old_version: str, safe_version: str) -> str:
+    """Generate a plain-English PR description covering all CVEs being fixed."""
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not api_key:
         raise ValueError("[ERROR] GEMINI_API_KEY secret is missing or empty.")
 
-    vuln_summary = vuln.get("summary", "No summary available.")
-    cve_id = vuln.get("id", "Unknown ID")
-    severity = vuln.get("database_specific", {}).get("severity", "Unknown")
-    references = vuln.get("references", [])
-    ref_links = "\n".join([r.get("url", "") for r in references[:3] if r.get("url")])
+    # Summarise all vulns for the prompt
+    vuln_lines = []
+    for v in vulns[:5]:  # cap at 5 to keep prompt size reasonable
+        cve_id   = v.get("id", "Unknown ID")
+        summary  = v.get("summary", "No summary available.")
+        severity = v.get("database_specific", {}).get("severity", "Unknown")
+        vuln_lines.append(f"  - {cve_id} ({severity}): {summary}")
+    vuln_block = "\n".join(vuln_lines)
 
-    prompt = f"""A vulnerability was found in the open-source package '{package_name}'.
+    # Collect reference URLs
+    refs = []
+    for v in vulns[:3]:
+        for r in v.get("references", [])[:2]:
+            url = r.get("url", "")
+            if url and url not in refs:
+                refs.append(url)
+    ref_block = "\n".join(refs[:4])
 
-CVE / OSV ID: {cve_id}
-Severity: {severity}
-Summary: {vuln_summary}
-References: {ref_links}
-Recommended fix: Upgrade to version {safe_version}
+    count = len(vulns)
+    prompt = f"""A security scan found {count} vulnerability(ies) in the open-source package '{package_name}'.
+
+Current version: {old_version}
+Safe version: {safe_version}
+
+Vulnerabilities being fixed:
+{vuln_block}
+
+References:
+{ref_block}
 
 Write a clear, developer-friendly GitHub Pull Request description (5-7 sentences) that:
-1. Explains what the vulnerability is and what an attacker could do with it
-2. Rates how serious it is in plain terms (avoid jargon)
-3. Explains what this version bump fixes and why it is safe to upgrade
-4. Ends with a short action line encouraging the reviewer to merge promptly
+1. Summarises what the vulnerabilities are and what an attacker could do
+2. Rates how serious they are in plain terms (no jargon)
+3. Explains why upgrading to {safe_version} is the right fix
+4. Ends with a short line encouraging the reviewer to merge promptly
 
-Use a professional but friendly tone. Format as plain text, no bullet points."""
+Use a professional but friendly tone. Plain text only — no bullet points, no markdown headers."""
 
     url = (
         "https://generativelanguage.googleapis.com/v1beta/models/"
@@ -38,7 +56,6 @@ Use a professional but friendly tone. Format as plain text, no bullet points."""
     for attempt in range(3):
         response = requests.post(url, json=payload, timeout=30)
         if response.status_code in (429, 503) and attempt < 2:
-            import time
             time.sleep(15 * (attempt + 1))
             continue
         if not response.ok:
