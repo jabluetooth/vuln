@@ -25,7 +25,10 @@ Write a clear, developer-friendly GitHub Pull Request description (5-7 sentences
 
 Use a professional but friendly tone. Format as plain text, no bullet points."""
 
-    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        raise ValueError("[ERROR] GEMINI_API_KEY secret is missing or empty in GitHub Actions.")
+    client = genai.Client(api_key=api_key)
     response = client.models.generate_content(
         model="gemini-2.0-flash",
         contents=prompt,
