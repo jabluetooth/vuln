@@ -1,0 +1,31 @@
+name: Vulnerability Auto-Patcher
+
+on:
+  schedule:
+    - cron: '0 9 * * 1' # Every Monday at 9AM
+  workflow_dispatch: # Manual trigger
+
+jobs:
+  scan-and-patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run vulnerability scanner
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          REPO_NAME: ${{ github.repository }}
+        run: python scanner/main.py
