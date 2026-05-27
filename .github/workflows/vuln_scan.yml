@@ -28,4 +28,5 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           REPO_NAME: ${{ github.repository }}
+          MIN_SEVERITY: ${{ vars.MIN_SEVERITY || 'HIGH' }}
         run: python scanner/main.py
