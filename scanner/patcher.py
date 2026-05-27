@@ -1,5 +1,6 @@
 import re
 import os
+import json
 import subprocess
 import logging
 import requests
@@ -10,19 +11,75 @@ DEFAULT_BRANCH = os.environ.get("DEFAULT_BRANCH", "main")
 
 
 def bump_version_in_file(filepath: str, package_name: str, old_version: str, new_version: str):
-    with open(filepath, "r") as f:
-        content = f.read()
+    filename = os.path.basename(filepath)
+    if filename in ('Pipfile.lock', 'package-lock.json'):
+        _bump_json(filepath, package_name, old_version, new_version)
+    elif filename in ('poetry.lock', 'Cargo.lock'):
+        _bump_toml_lock(filepath, package_name, old_version, new_version)
+    elif filename == 'go.mod':
+        _bump_go_mod(filepath, package_name, old_version, new_version)
+    else:
+        _bump_regex(filepath, package_name, old_version, new_version)
+    logger.info("Bumped %s from %s → %s in %s", package_name, old_version, new_version, filepath)
 
+
+def _bump_regex(filepath: str, package_name: str, old_version: str, new_version: str):
+    with open(filepath, 'r') as f:
+        content = f.read()
     updated = re.sub(
         rf'({re.escape(package_name)}\s*[=><~!]+\s*){re.escape(old_version)}',
         rf'\g<1>{new_version}',
         content
     )
-
-    with open(filepath, "w") as f:
+    with open(filepath, 'w') as f:
         f.write(updated)
 
-    logger.info("Bumped %s from %s → %s in %s", package_name, old_version, new_version, filepath)
+
+def _bump_toml_lock(filepath: str, package_name: str, old_version: str, new_version: str):
+    """Bump version inside a [[package]] block in poetry.lock or Cargo.lock."""
+    with open(filepath, 'r') as f:
+        content = f.read()
+    pattern = re.compile(
+        rf'(\[\[package\]\][^\[]*?name\s*=\s*"{re.escape(package_name)}"[^\[]*?version\s*=\s*"){re.escape(old_version)}"',
+        re.DOTALL
+    )
+    updated = pattern.sub(rf'\g<1>{new_version}"', content)
+    with open(filepath, 'w') as f:
+        f.write(updated)
+
+
+def _bump_go_mod(filepath: str, package_name: str, old_version: str, new_version: str):
+    with open(filepath, 'r') as f:
+        content = f.read()
+    updated = re.sub(
+        rf'({re.escape(package_name)}\s+v){re.escape(old_version)}',
+        rf'\g<1>{new_version}',
+        content
+    )
+    with open(filepath, 'w') as f:
+        f.write(updated)
+
+
+def _bump_json(filepath: str, package_name: str, old_version: str, new_version: str):
+    with open(filepath, 'r') as f:
+        data = json.load(f)
+    filename = os.path.basename(filepath)
+    if filename == 'Pipfile.lock':
+        for section in ('default', 'develop'):
+            pkg = data.get(section, {}).get(package_name, {})
+            if pkg.get('version', '').lstrip('=') == old_version:
+                pkg['version'] = f'=={new_version}'
+    elif filename == 'package-lock.json':
+        for path_key, info in data.get('packages', {}).items():
+            name = path_key.removeprefix('node_modules/').lstrip('/')
+            if name == package_name and info.get('version') == old_version:
+                info['version'] = new_version
+        for name, info in data.get('dependencies', {}).items():
+            if name == package_name and info.get('version', '').lstrip('^~=> ') == old_version:
+                info['version'] = new_version
+    with open(filepath, 'w') as f:
+        json.dump(data, f, indent=2)
+        f.write('\n')
 
 
 def git_setup():
