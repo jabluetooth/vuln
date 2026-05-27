@@ -31,9 +31,10 @@ Use a professional but friendly tone. Format as plain text, no bullet points."""
 
     url = (
         "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"gemini-1.5-flash:generateContent?key={api_key}"
+        f"gemini-2.0-flash-lite:generateContent?key={api_key}"
     )
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
     response = requests.post(url, json=payload, timeout=30)
-    response.raise_for_status()
+    if not response.ok:
+        raise ValueError(f"Gemini API error {response.status_code}: {response.text}")
     return response.json()["candidates"][0]["content"]["parts"][0]["text"]
