@@ -116,5 +116,5 @@ def send_email_digest(findings: list[dict], repo: str):
 def notify_all(findings: list[dict], repo: str):
     """Fire all configured notification channels."""
     send_slack(findings, repo)
-    send_discord(findings, repo)
+    # send_discord(findings, repo)  # disabled — re-enable when Discord account is accessible
     send_email_digest(findings, repo)
