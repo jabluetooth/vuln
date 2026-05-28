@@ -140,10 +140,13 @@ def is_patch_bump(old_version: str, new_version: str) -> bool:
 
 # ── Git helpers ───────────────────────────────────────────────────────────────
 
+_GIT_TIMEOUT = 60  # seconds — prevents hung git network operations
+
+
 def git_setup(cwd: str | None = None):
     try:
-        subprocess.run(["git", "config", "user.email", "vuln-patcher-bot@noreply.github.com"], check=True, cwd=cwd)
-        subprocess.run(["git", "config", "user.name",  "Vuln Auto-Patcher Bot"], check=True, cwd=cwd)
+        subprocess.run(["git", "config", "user.email", "vuln-patcher-bot@noreply.github.com"], check=True, cwd=cwd, timeout=_GIT_TIMEOUT)
+        subprocess.run(["git", "config", "user.name",  "Vuln Auto-Patcher Bot"], check=True, cwd=cwd, timeout=_GIT_TIMEOUT)
         logger.info("Git identity configured.")
     except subprocess.CalledProcessError as e:
         logger.error("Failed to configure git identity: %s", e)
@@ -153,7 +156,7 @@ def git_setup(cwd: str | None = None):
 def branch_exists_on_remote(branch_name: str, cwd: str | None = None) -> bool:
     result = subprocess.run(
         ["git", "ls-remote", "--heads", "origin", branch_name],
-        capture_output=True, text=True, cwd=cwd,
+        capture_output=True, text=True, cwd=cwd, timeout=_GIT_TIMEOUT,
     )
     return branch_name in result.stdout
 
@@ -171,25 +174,28 @@ def create_branch_and_commit(
         logger.info("Branch '%s' already exists on remote — skipping.", branch_name)
         return False
 
-    # git add requires a path relative to the repo root
-    import os as _os
-    git_filepath = _os.path.relpath(filepath, cwd) if cwd else filepath
+    git_filepath = os.path.relpath(filepath, cwd) if cwd else filepath
 
     try:
-        subprocess.run(["git", "checkout", "-b", branch_name], check=True, cwd=cwd)
-        subprocess.run(["git", "add", git_filepath], check=True, cwd=cwd)
+        subprocess.run(["git", "checkout", "-b", branch_name], check=True, cwd=cwd, timeout=_GIT_TIMEOUT)
+        subprocess.run(["git", "add", git_filepath], check=True, cwd=cwd, timeout=_GIT_TIMEOUT)
         subprocess.run(
             ["git", "commit", "-m",
              f"fix(deps): bump {package_name} to {new_version} (security patch)"],
-            check=True, cwd=cwd,
+            check=True, cwd=cwd, timeout=_GIT_TIMEOUT,
         )
-        subprocess.run(["git", "push", "origin", branch_name], check=True, cwd=cwd)
+        subprocess.run(["git", "push", "origin", branch_name], check=True, cwd=cwd, timeout=_GIT_TIMEOUT)
         logger.info("Pushed branch '%s'.", branch_name)
         return True
+    except subprocess.TimeoutExpired as e:
+        logger.error("Git operation timed out on branch '%s': %s", branch_name, e)
+        subprocess.run(["git", "checkout", default_branch], check=False, cwd=cwd, timeout=_GIT_TIMEOUT)
+        subprocess.run(["git", "branch", "-D", branch_name], check=False, cwd=cwd, timeout=_GIT_TIMEOUT)
+        return False
     except subprocess.CalledProcessError as e:
         logger.error("Git operation failed on branch '%s': %s", branch_name, e)
-        subprocess.run(["git", "checkout", default_branch], check=False, cwd=cwd)
-        subprocess.run(["git", "branch", "-D", branch_name], check=False, cwd=cwd)
+        subprocess.run(["git", "checkout", default_branch], check=False, cwd=cwd, timeout=_GIT_TIMEOUT)
+        subprocess.run(["git", "branch", "-D", branch_name], check=False, cwd=cwd, timeout=_GIT_TIMEOUT)
         return False
 
 

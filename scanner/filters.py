@@ -16,7 +16,8 @@ def _load_set(env_var: str) -> set[str]:
 # Loaded once at import time so the sets are available globally
 PACKAGE_DENYLIST: set[str] = _load_set("PACKAGE_DENYLIST")
 CVE_DENYLIST:     set[str] = _load_set("CVE_DENYLIST")
-CVSS_THRESHOLD:   float    = float(os.environ.get("CVSS_THRESHOLD", "0"))  # 0 = disabled
+_cvss_raw         = os.environ.get("CVSS_THRESHOLD", "0").strip()
+CVSS_THRESHOLD:   float    = float(_cvss_raw) if _cvss_raw else 0.0  # 0 = disabled
 
 
 def is_package_allowed(package_name: str) -> bool:

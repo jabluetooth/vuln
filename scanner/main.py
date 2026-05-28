@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import subprocess
 import logging
@@ -238,7 +239,8 @@ def main():
             source_file=pkg["source_file"],
         )
 
-        branch = f"fix/vuln-{pkg['name']}-{best_version}".replace(".", "-").lower()
+        _safe = lambda s: re.sub(r'[^a-z0-9]+', '-', s.lower()).strip('-')
+        branch = f"fix/vuln-{_safe(pkg['name'])}-{_safe(best_version)}"
         title  = f"Security Fix: {pkg['name']} {pkg['version']} → {best_version} [{worst_severity}]"
         patch  = is_patch_bump(pkg["version"], best_version)
 

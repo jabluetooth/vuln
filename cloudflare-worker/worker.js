@@ -39,7 +39,7 @@ export default {
     // ── GET /result/:run_id ────────────────────────────────────────────────────
     const resultMatch = url.pathname.match(/^\/result\/(\d+)$/)
     if (request.method === 'GET' && resultMatch) {
-      if (!verifyExtensionToken(request, env)) {
+      if (!(await verifyExtensionToken(request, env))) {
         return new Response('Unauthorized', { status: 401 })
       }
       return handleResult(resultMatch[1], env)
@@ -59,6 +59,11 @@ export default {
 // ── Webhook handler ────────────────────────────────────────────────────────────
 
 async function handleWebhook(request, env) {
+  // Reject immediately if secrets are not configured
+  if (!env.WEBHOOK_SECRET) {
+    return new Response('Webhook secret not configured', { status: 500 })
+  }
+
   const body = await request.text()
 
   // Verify GitHub HMAC signature
@@ -132,9 +137,18 @@ async function handleResult(runId, env) {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function verifyExtensionToken(request, env) {
-  const auth = request.headers.get('Authorization') || ''
-  return auth === `Bearer ${env.EXTENSION_TOKEN}`
+async function verifyExtensionToken(request, env) {
+  if (!env.EXTENSION_TOKEN) return false
+  const auth     = request.headers.get('Authorization') || ''
+  const provided = auth.startsWith('Bearer ') ? auth.slice(7) : ''
+  // Constant-time comparison — prevents token extraction via timing attack
+  const enc = new TextEncoder()
+  const a   = enc.encode(provided)
+  const b   = enc.encode(env.EXTENSION_TOKEN)
+  if (a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i]
+  return diff === 0
 }
 
 async function verifyGitHubSig(body, signature, secret) {
@@ -198,11 +212,18 @@ async function downloadScanReport(runId, repo, githubPat) {
   }
 }
 
+const MAX_ARTIFACT_BYTES    = 10 * 1024 * 1024   // 10 MB — guard against oversized artifacts
+const MAX_DECOMPRESSED_BYTES = 20 * 1024 * 1024  // 20 MB — guard against zip bombs
+
 /**
  * Extract and parse a single JSON file from a ZIP archive.
  * Handles both stored (method 0) and deflated (method 8) files.
  */
 async function extractJsonFromZip(buffer, targetFile) {
+  if (buffer.byteLength > MAX_ARTIFACT_BYTES) {
+    console.error('Artifact exceeds size limit — skipping extraction')
+    return null
+  }
   const bytes = new Uint8Array(buffer)
   const view  = new DataView(buffer)
 
@@ -254,8 +275,12 @@ async function extractJsonFromZip(buffer, targetFile) {
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
-          chunks.push(value)
           totalLen += value.length
+          if (totalLen > MAX_DECOMPRESSED_BYTES) {
+            console.error('Decompressed size exceeds limit — aborting')
+            return null
+          }
+          chunks.push(value)
         }
         fileBytes = new Uint8Array(totalLen)
         let pos = 0

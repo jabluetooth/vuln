@@ -26,6 +26,18 @@ _PURL_ECO = {
 }
 
 
+def _h(value) -> str:
+    """HTML-escape a value for safe insertion into HTML content or attributes."""
+    return (
+        str(value)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&#39;")
+    )
+
+
 # ── Job Summary ───────────────────────────────────────────────────────────────
 
 def write_job_summary(findings: list[dict], repo: str, scanned_count: int):
@@ -219,22 +231,25 @@ def generate_dashboard(history: list[dict], repo: str):
 
     def _row(e: dict) -> str:
         status = (
-            f'<span class="resolved">✅ {e["resolved_at"][:10]}</span>'
+            f'<span class="resolved">✅ {_h(e["resolved_at"][:10])}</span>'
             if e.get("resolved_at")
             else '<span class="open">⏳ Open</span>'
         )
-        mttr_cell = str(e.get("mttr_hours", "—"))
-        cve_url = (
-            f"https://github.com/advisories/{e['cve_id']}"
-            if e["cve_id"].upper().startswith("GHSA-")
-            else f"https://osv.dev/vulnerability/{e['cve_id']}"
-        )
+        mttr_cell = _h(e.get("mttr_hours", "—"))
+        cve_id = e["cve_id"]
+        # Only allow known-safe CVE/GHSA URL schemes
+        if cve_id.upper().startswith("GHSA-"):
+            cve_url = f"https://github.com/advisories/{_h(cve_id)}"
+        elif cve_id.upper().startswith("CVE-"):
+            cve_url = f"https://osv.dev/vulnerability/{_h(cve_id)}"
+        else:
+            cve_url = f"https://osv.dev/vulnerability/{_h(cve_id)}"
         return (
             f"<tr>"
-            f"<td>{e['package']}</td>"
-            f'<td><a href="{cve_url}" target="_blank">{e["cve_id"]}</a></td>'
-            f"<td>{e['severity']}</td>"
-            f"<td>{e['first_seen'][:10]}</td>"
+            f"<td>{_h(e['package'])}</td>"
+            f'<td><a href="{cve_url}" target="_blank" rel="noopener noreferrer">{_h(cve_id)}</a></td>'
+            f"<td>{_h(e['severity'])}</td>"
+            f"<td>{_h(e['first_seen'][:10])}</td>"
             f"<td>{status}</td>"
             f"<td>{mttr_cell}</td>"
             f"</tr>"
@@ -243,12 +258,13 @@ def generate_dashboard(history: list[dict], repo: str):
     rows = "".join(_row(e) for e in reversed(history[-200:]))
     updated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
+    safe_repo = _h(repo)
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{repo} — Vulnerability Dashboard</title>
+<title>{safe_repo} — Vulnerability Dashboard</title>
 <style>
   *{{box-sizing:border-box}}
   body{{font-family:system-ui,-apple-system,sans-serif;max-width:1000px;margin:2rem auto;
@@ -276,7 +292,7 @@ def generate_dashboard(history: list[dict], repo: str):
 </style>
 </head>
 <body>
-<h1>🔐 {repo} — Vulnerability Dashboard</h1>
+<h1>🔐 {safe_repo} — Vulnerability Dashboard</h1>
 
 <div class="stats">
   <div class="stat">

@@ -327,9 +327,7 @@ function renderResults(result) {
         <td><strong>${esc(f.package)}</strong></td>
         <td>${esc(f.old_version)} → ${esc(f.new_version)}</td>
         <td class="${sevClass(f.worst_severity)}">${esc(f.worst_severity)}</td>
-        <td>${f.pr_url
-          ? `<a href="${esc(f.pr_url)}" target="_blank">#${f.pr_number}</a>`
-          : '<em>dry run</em>'}</td>
+        <td>${safeGitHubLink(f.pr_url, f.pr_number)}</td>
       `
       tbody.appendChild(tr)
     }
@@ -363,8 +361,29 @@ function sevClass(sev) {
   return map[sev?.toUpperCase()] || ''
 }
 
+function safeGitHubLink(url, number) {
+  if (!url || typeof url !== 'string') return '<em>dry run</em>'
+  // Only allow https://github.com PR URLs — block javascript: and other schemes
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'https:' || parsed.hostname !== 'github.com') {
+      return '<em>invalid PR URL</em>'
+    }
+  } catch {
+    return '<em>invalid PR URL</em>'
+  }
+  const safeNum = parseInt(number, 10)
+  if (!Number.isFinite(safeNum)) return '<em>dry run</em>'
+  return `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">#${safeNum}</a>`
+}
+
 function esc(str) {
-  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 
 function formatDate(iso) {

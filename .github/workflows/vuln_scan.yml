@@ -78,9 +78,19 @@ jobs:
       - name: Resolve scan target
         env:
           SCANNER_PAT: ${{ secrets.SCANNER_PAT }}
+          # Pass user-controlled inputs via env vars — never interpolate directly
+          # into shell scripts (GitHub Actions expression injection risk).
+          INPUT_TARGET_REPO: ${{ github.event.inputs.target_repo }}
+          SELF_REPO: ${{ github.repository }}
         run: |
-          TARGET="${{ github.event.inputs.target_repo }}"
-          SELF="${{ github.repository }}"
+          TARGET="$INPUT_TARGET_REPO"
+          SELF="$SELF_REPO"
+
+          # Validate: only allow owner/repo format (alphanum, hyphens, dots, slashes)
+          if [ -n "$TARGET" ] && ! echo "$TARGET" | grep -qE '^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$'; then
+            echo "::error::Invalid target_repo format: '$TARGET'. Must be owner/repo."
+            exit 1
+          fi
 
           if [ -n "$TARGET" ] && [ "$TARGET" != "$SELF" ]; then
             echo "Scanning remote repo: $TARGET"
