@@ -3,15 +3,69 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Vulnerability Dashboard</title>
+<title>jabluetooth/vuln — Vulnerability Dashboard</title>
 <style>
-  body{font-family:system-ui,sans-serif;max-width:600px;margin:4rem auto;padding:0 1.25rem;color:#24292f;text-align:center}
-  h1{border-bottom:3px solid #d73a4a;padding-bottom:.5rem}
-  p{color:#57606a}
+  *{box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,sans-serif;max-width:1000px;margin:2rem auto;
+       padding:0 1.25rem;color:#24292f;background:#fff}
+  h1{border-bottom:3px solid #d73a4a;padding-bottom:.5rem;margin-bottom:1.5rem}
+  h2{margin-top:2rem;color:#24292f}
+  .stats{display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:2rem}
+  .stat{background:#f6f8fa;border:1px solid #d0d7de;border-radius:8px;
+         padding:1rem 1.5rem;text-align:center;min-width:120px}
+  .stat .num{font-size:2rem;font-weight:700;color:#d73a4a}
+  .stat .lbl{font-size:.8rem;color:#57606a;margin-top:.25rem}
+  .bar-row{display:flex;align-items:center;margin:5px 0;gap:8px}
+  .bar-label{width:80px;font-weight:600;font-size:.9rem}
+  .bar{height:22px;border-radius:4px;transition:width .3s}
+  .bar-count{font-size:.9rem;color:#57606a}
+  table{width:100%;border-collapse:collapse;font-size:.9rem;margin-top:1rem}
+  thead tr{background:#24292f;color:#fff}
+  th,td{padding:.5rem .75rem;text-align:left;border-bottom:1px solid #e1e4e8}
+  tr:nth-child(even) td{background:#f6f8fa}
+  a{color:#0969da;text-decoration:none}
+  a:hover{text-decoration:underline}
+  .open{color:#cf222e;font-weight:600}
+  .resolved{color:#1a7f37}
+  .updated{font-size:.75rem;color:#57606a;margin-top:1.5rem;text-align:right}
 </style>
 </head>
 <body>
-<h1>🔐 Vulnerability Dashboard</h1>
-<p>No scans have run yet. The dashboard will appear here after the first workflow run.</p>
+<h1>🔐 jabluetooth/vuln — Vulnerability Dashboard</h1>
+
+<div class="stats">
+  <div class="stat">
+    <div class="num">0</div>
+    <div class="lbl">Open CVEs</div>
+  </div>
+  <div class="stat">
+    <div class="num">0</div>
+    <div class="lbl">Resolved</div>
+  </div>
+  <div class="stat">
+    <div class="num">—</div>
+    <div class="lbl">Avg MTTR (hrs)</div>
+  </div>
+  <div class="stat">
+    <div class="num">0</div>
+    <div class="lbl">Total Tracked</div>
+  </div>
+</div>
+
+<h2>Open Vulnerabilities by Severity</h2>
+<p>No open vulnerabilities 🎉</p>
+
+<h2>Vulnerability History</h2>
+<table>
+<thead>
+  <tr>
+    <th>Package</th><th>CVE / OSV ID</th><th>Severity</th>
+    <th>First Seen</th><th>Status</th><th>MTTR (hrs)</th>
+  </tr>
+</thead>
+<tbody></tbody>
+</table>
+
+<p class="updated">Last updated: 2026-05-28 06:31 UTC</p>
 </body>
 </html>
