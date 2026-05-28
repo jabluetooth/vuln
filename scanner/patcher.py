@@ -197,7 +197,9 @@ def create_branch_and_commit(
 
 def bump_version_in_file(filepath: str, package_name: str, old_version: str, new_version: str):
     filename = os.path.basename(filepath)
-    if filename in ("Pipfile.lock", "package-lock.json"):
+    if filename == "package.json":
+        _bump_package_json(filepath, package_name, old_version, new_version)
+    elif filename in ("Pipfile.lock", "package-lock.json"):
         _bump_json(filepath, package_name, old_version, new_version)
     elif filename in ("poetry.lock", "Cargo.lock"):
         _bump_toml_lock(filepath, package_name, old_version, new_version)
@@ -206,6 +208,27 @@ def bump_version_in_file(filepath: str, package_name: str, old_version: str, new
     else:
         _bump_regex(filepath, package_name, old_version, new_version)
     logger.info("Bumped %s %s → %s in %s", package_name, old_version, new_version, filepath)
+
+
+def _bump_package_json(filepath: str, package_name: str, old_version: str, new_version: str):
+    with open(filepath) as f:
+        data = json.load(f)
+    changed = False
+    for section in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies"):
+        pkg_map = data.get(section, {})
+        if package_name not in pkg_map:
+            continue
+        current = pkg_map[package_name].strip()
+        # Preserve leading range prefix (^, ~, >=, etc.)
+        prefix = re.match(r'^([^0-9]*)', current).group(1)
+        bare = current.lstrip('^~>=<! ')
+        if bare == old_version:
+            pkg_map[package_name] = f"{prefix}{new_version}"
+            changed = True
+    if changed:
+        with open(filepath, "w") as f:
+            json.dump(data, f, indent=2)
+            f.write("\n")
 
 
 def _bump_regex(filepath: str, package_name: str, old_version: str, new_version: str):
