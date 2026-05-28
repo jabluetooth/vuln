@@ -27,11 +27,11 @@ def _gh_headers(token: str) -> dict:
     return {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
 
 
-def get_default_branch(repo: str, token: str) -> str:
+def get_default_branch(repo: str, token: str, gh_api_url: str = "https://api.github.com") -> str:
     """Fetch the repo's actual default branch from GitHub API."""
     try:
         r = requests.get(
-            f"https://api.github.com/repos/{repo}",
+            f"{gh_api_url}/repos/{repo}",
             headers=_gh_headers(token),
             timeout=10
         )
@@ -44,12 +44,12 @@ def get_default_branch(repo: str, token: str) -> str:
     return os.environ.get("DEFAULT_BRANCH", "main")
 
 
-def open_pr_exists(repo: str, branch: str, token: str) -> bool:
+def open_pr_exists(repo: str, branch: str, token: str, gh_api_url: str = "https://api.github.com") -> bool:
     """Return True if an open PR already targets this branch."""
     owner = repo.split("/")[0]
     try:
         r = requests.get(
-            f"https://api.github.com/repos/{repo}/pulls",
+            f"{gh_api_url}/repos/{repo}/pulls",
             headers=_gh_headers(token),
             params={"head": f"{owner}:{branch}", "state": "open"},
             timeout=10
@@ -61,7 +61,7 @@ def open_pr_exists(repo: str, branch: str, token: str) -> bool:
     return False
 
 
-def ensure_labels(repo: str, token: str, extra_names: list[str]):
+def ensure_labels(repo: str, token: str, extra_names: list[str], gh_api_url: str = "https://api.github.com"):
     """Create standard labels and any custom labels if they don't exist yet."""
     labels_to_create = BASE_LABELS + list(SEVERITY_LABELS.values())
     for name in extra_names:
@@ -70,7 +70,7 @@ def ensure_labels(repo: str, token: str, extra_names: list[str]):
 
     for label in labels_to_create:
         requests.post(
-            f"https://api.github.com/repos/{repo}/labels",
+            f"{gh_api_url}/repos/{repo}/labels",
             headers=_gh_headers(token),
             json=label,
             timeout=10
@@ -78,9 +78,9 @@ def ensure_labels(repo: str, token: str, extra_names: list[str]):
         # 422 = label already exists — silently ignored
 
 
-def add_labels_to_pr(repo: str, pr_number: int, label_names: list[str], token: str):
+def add_labels_to_pr(repo: str, pr_number: int, label_names: list[str], token: str, gh_api_url: str = "https://api.github.com"):
     r = requests.post(
-        f"https://api.github.com/repos/{repo}/issues/{pr_number}/labels",
+        f"{gh_api_url}/repos/{repo}/issues/{pr_number}/labels",
         headers=_gh_headers(token),
         json={"labels": label_names},
         timeout=10
@@ -89,11 +89,11 @@ def add_labels_to_pr(repo: str, pr_number: int, label_names: list[str], token: s
         logger.warning("Could not add labels to PR #%d: %s", pr_number, r.text)
 
 
-def request_reviewers(repo: str, pr_number: int, reviewers: list[str], token: str):
+def request_reviewers(repo: str, pr_number: int, reviewers: list[str], token: str, gh_api_url: str = "https://api.github.com"):
     if not reviewers:
         return
     r = requests.post(
-        f"https://api.github.com/repos/{repo}/pulls/{pr_number}/requested_reviewers",
+        f"{gh_api_url}/repos/{repo}/pulls/{pr_number}/requested_reviewers",
         headers=_gh_headers(token),
         json={"reviewers": reviewers},
         timeout=10
@@ -102,7 +102,7 @@ def request_reviewers(repo: str, pr_number: int, reviewers: list[str], token: st
         logger.warning("Could not add reviewers to PR #%d: %s", pr_number, r.text)
 
 
-def enable_auto_merge(pr_node_id: str, token: str):
+def enable_auto_merge(pr_node_id: str, token: str, gh_api_url: str = "https://api.github.com"):
     """Enable GitHub auto-merge on the PR via GraphQL (requires branch protection to be set up)."""
     query = """
     mutation($prId: ID!) {
@@ -111,9 +111,10 @@ def enable_auto_merge(pr_node_id: str, token: str):
       }
     }
     """
+    graphql_url = gh_api_url.rstrip("/").replace("/api/v3", "") + "/graphql"
     try:
         r = requests.post(
-            "https://api.github.com/graphql",
+            graphql_url,
             headers={"Authorization": f"Bearer {token}"},
             json={"query": query, "variables": {"prId": pr_node_id}},
             timeout=15
@@ -273,43 +274,44 @@ def create_pull_request(
     label_names: list[str] | None = None,
     reviewers: list[str] | None = None,
     auto_merge: bool = False,
+    gh_api_url: str = "https://api.github.com",
 ) -> dict | None:
     """Open a PR and apply labels, reviewers, and auto-merge as configured."""
     label_names = label_names or []
-    reviewers = reviewers or []
+    reviewers   = reviewers or []
 
     # Guard: don't open a duplicate PR
-    if open_pr_exists(repo, branch_name, token):
+    if open_pr_exists(repo, branch_name, token, gh_api_url):
         logger.info("Open PR already exists for branch '%s' — skipping.", branch_name)
         return None
 
     # Ensure all labels exist in the repo before applying them
     if label_names:
-        ensure_labels(repo, token, label_names)
+        ensure_labels(repo, token, label_names, gh_api_url)
 
     for attempt in range(3):
         try:
             r = requests.post(
-                f"https://api.github.com/repos/{repo}/pulls",
+                f"{gh_api_url}/repos/{repo}/pulls",
                 headers=_gh_headers(token),
                 json={"title": title, "body": body, "head": branch_name, "base": default_branch},
                 timeout=15
             )
             if r.status_code == 201:
-                pr = r.json()
+                pr        = r.json()
                 pr_url    = pr.get("html_url")
                 pr_number = pr.get("number")
                 pr_node   = pr.get("node_id")
                 logger.info("PR #%d opened: %s", pr_number, pr_url)
 
                 if label_names:
-                    add_labels_to_pr(repo, pr_number, label_names, token)
+                    add_labels_to_pr(repo, pr_number, label_names, token, gh_api_url)
 
                 if reviewers:
-                    request_reviewers(repo, pr_number, reviewers, token)
+                    request_reviewers(repo, pr_number, reviewers, token, gh_api_url)
 
                 if auto_merge:
-                    enable_auto_merge(pr_node, token)
+                    enable_auto_merge(pr_node, token, gh_api_url)
 
                 return {"url": pr_url, "number": pr_number, "node_id": pr_node}
 

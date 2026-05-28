@@ -4,6 +4,13 @@ on:
   schedule:
     - cron: '0 9 * * 1' # Every Monday at 9AM UTC
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (log only, no PRs)'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
 
 jobs:
   scan-and-patch:
@@ -11,9 +18,12 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      pages: write
 
     steps:
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # needed for git push of dashboard
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -36,12 +46,63 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           REPO_NAME: ${{ github.repository }}
+
+          # ── Filtering ────────────────────────────────────────────────────
           MIN_SEVERITY: MODERATE
           MAX_PRS_PER_RUN: '10'
+
+          # Phase 6 filters
+          # Comma-separated package names to never patch (e.g. "boto3,urllib3")
+          PACKAGE_DENYLIST: ''
+          # Comma-separated CVE / GHSA IDs to skip (e.g. "GHSA-xxxx-yyyy-zzzz")
+          CVE_DENYLIST: ''
+          # Minimum CVSS base score (0 = disabled, e.g. "7.0" for High+)
+          CVSS_THRESHOLD: '0'
+          # Set to 'true' to skip packages already covered by an open Dependabot PR
+          SKIP_DEPENDABOT: 'false'
+
+          # ── PR options ───────────────────────────────────────────────────
           # Labels added to every security PR (comma-separated)
           PR_LABELS: security,dependencies
           # GitHub usernames to request as reviewers (comma-separated, leave blank for none)
           PR_REVIEWERS: ''
           # Set to 'true' to auto-merge patch-level bumps when CI passes
           AUTO_MERGE_PATCH: 'false'
+          # Set to 'true' (or pass via workflow_dispatch input) for a no-op dry run
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+
+          # ── GitHub Enterprise (leave blank for github.com) ────────────────
+          # GITHUB_API_URL: https://github.mycompany.com/api/v3
+
+          # ── Notifications (Phase 5) ──────────────────────────────────────
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
         run: python scanner/main.py
+
+      # ── Upload JSON scan report as artifact ──────────────────────────────
+      - name: Upload scan report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scan-report-${{ github.run_id }}
+          path: |
+            scan_report.json
+            sbom.json
+            scan_history.json
+          if-no-files-found: ignore
+          retention-days: 90
+
+      # ── Commit dashboard + history back to main so GitHub Pages can serve it
+      - name: Commit dashboard and history
+        if: always()
+        run: |
+          git config user.email "vuln-patcher-bot@noreply.github.com"
+          git config user.name "Vuln Auto-Patcher Bot"
+          git add docs/index.html scan_history.json 2>/dev/null || true
+          git diff --cached --quiet || git commit -m "chore: update vulnerability dashboard [skip ci]"
+          git push origin HEAD:${{ github.ref_name }} 2>/dev/null || true
