@@ -74,10 +74,11 @@ def send_discord(findings: list[dict], repo: str):
 
 def send_email_digest(findings: list[dict], repo: str):
     """Send a scan digest via SMTP (TLS on port 587)."""
-    smtp_host  = os.environ.get("SMTP_HOST", "").strip()
-    smtp_port  = int(os.environ.get("SMTP_PORT", "587"))
-    smtp_user  = os.environ.get("SMTP_USER", "").strip()
-    smtp_pass  = os.environ.get("SMTP_PASS", "").strip()
+    smtp_host   = os.environ.get("SMTP_HOST", "").strip()
+    _port_raw   = os.environ.get("SMTP_PORT", "").strip()
+    smtp_port   = int(_port_raw) if _port_raw else 587
+    smtp_user   = os.environ.get("SMTP_USER", "").strip()
+    smtp_pass   = os.environ.get("SMTP_PASS", "").strip()
     alert_email = os.environ.get("ALERT_EMAIL", "").strip()
 
     if not all([smtp_host, smtp_user, smtp_pass, alert_email]):
