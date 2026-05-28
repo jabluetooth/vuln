@@ -1,5 +1,6 @@
 .env
 ROADMAP.md
+EXTENSION_ARCHITECTURE.md
 __pycache__/
 *.pyc
 *.pyo
