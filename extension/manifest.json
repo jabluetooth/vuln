@@ -1,0 +1,48 @@
+{
+  "manifest_version": 3,
+  "name": "Vuln Auto-Patcher",
+  "version": "1.0.0",
+  "description": "Trigger and monitor vulnerability scans for any GitHub repo running the Vuln Auto-Patcher workflow.",
+
+  "permissions": [
+    "storage",
+    "alarms",
+    "notifications",
+    "tabs"
+  ],
+
+  "host_permissions": [
+    "https://github.com/*",
+    "https://api.github.com/*",
+    "https://*.workers.dev/*"
+  ],
+
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16":  "icons/icon-16.png",
+      "48":  "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    },
+    "default_title": "Vuln Auto-Patcher"
+  },
+
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["https://github.com/*/*"],
+      "js": ["content/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "icons": {
+    "16":  "icons/icon-16.png",
+    "48":  "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
+}

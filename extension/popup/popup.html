@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vuln Auto-Patcher</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+
+  <!-- ── Header ─────────────────────────────────────────────────────────────── -->
+  <header id="header">
+    <div class="header-left">
+      <svg class="header-icon" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M8 0a5 5 0 0 1 5 5v1h.5A1.5 1.5 0 0 1 15 7.5v6A1.5 1.5 0 0 1 13.5 15h-11A1.5 1.5 0 0 1 1 13.5v-6A1.5 1.5 0 0 1 2.5 6H3V5a5 5 0 0 1 5-5zm0 1.5A3.5 3.5 0 0 0 4.5 5v1h7V5A3.5 3.5 0 0 0 8 1.5zm0 8a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>
+      </svg>
+      <span class="header-title">Vuln Auto-Patcher</span>
+    </div>
+    <button id="btn-settings" class="icon-btn" title="Settings">
+      <svg viewBox="0 0 16 16" fill="currentColor">
+        <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/>
+        <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.892 3.433-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.892-1.64-.901-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159A1.873 1.873 0 0 0 7.03 1.945l.094-.319z"/>
+      </svg>
+    </button>
+  </header>
+
+  <!-- ── Setup view (shown when PAT not configured) ──────────────────────────── -->
+  <section id="view-setup" class="view hidden">
+    <p class="setup-intro">Configure your credentials to get started.</p>
+
+    <div class="form-group">
+      <label for="input-pat">GitHub Personal Access Token</label>
+      <input type="password" id="input-pat" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+      <small>Needs <code>repo</code> scope. <a href="https://github.com/settings/tokens/new?scopes=repo&description=Vuln+Auto-Patcher" target="_blank">Create one →</a></small>
+    </div>
+
+    <div class="form-group">
+      <label for="input-worker">Cloudflare Worker URL</label>
+      <input type="url" id="input-worker" placeholder="https://vuln-relay.your-name.workers.dev">
+      <small>Leave blank to use GitHub API polling (no instant results).</small>
+    </div>
+
+    <div class="form-group">
+      <label for="input-ext-token">Extension Token</label>
+      <input type="password" id="input-ext-token" placeholder="Random secret you set in the Worker">
+      <small>Must match <code>EXTENSION_TOKEN</code> in your Worker secrets.</small>
+    </div>
+
+    <button id="btn-save-settings" class="btn-primary">Save &amp; Continue</button>
+    <div id="setup-error" class="error hidden"></div>
+  </section>
+
+  <!-- ── Scan view (normal state) ────────────────────────────────────────────── -->
+  <section id="view-scan" class="view hidden">
+
+    <!-- Repo pill -->
+    <div id="repo-pill" class="repo-pill">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 9h8Z"/>
+      </svg>
+      <span id="repo-name">Not on a repo page</span>
+    </div>
+
+    <!-- Scan settings -->
+    <div class="settings-grid">
+      <div class="form-group">
+        <label for="sel-severity">Min Severity</label>
+        <select id="sel-severity">
+          <option value="LOW">LOW</option>
+          <option value="MODERATE" selected>MODERATE</option>
+          <option value="HIGH">HIGH</option>
+          <option value="CRITICAL">CRITICAL</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="range-cvss">CVSS Min <span id="cvss-value">0 (off)</span></label>
+        <input type="range" id="range-cvss" min="0" max="10" step="0.5" value="0">
+      </div>
+
+      <div class="form-group form-group--inline">
+        <label for="chk-dryrun">Dry run (no PRs)</label>
+        <input type="checkbox" id="chk-dryrun">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="input-pkg-deny">Package deny-list</label>
+      <input type="text" id="input-pkg-deny" placeholder="boto3, urllib3">
+    </div>
+
+    <div class="form-group">
+      <label for="input-cve-deny">CVE deny-list</label>
+      <input type="text" id="input-cve-deny" placeholder="GHSA-xxxx-yyyy-zzzz">
+    </div>
+
+    <button id="btn-scan" class="btn-primary">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zm.75 3.25a.75.75 0 0 0-1.5 0v3l1.5 1.5a.75.75 0 0 0 1.06-1.06L8.75 8.44V5.75z"/>
+      </svg>
+      Run Scan
+    </button>
+
+    <!-- Status banner -->
+    <div id="status-banner" class="status-banner hidden">
+      <div id="status-icon" class="status-icon"></div>
+      <div>
+        <div id="status-title" class="status-title"></div>
+        <div id="status-detail" class="status-detail"></div>
+      </div>
+    </div>
+
+    <!-- Results table -->
+    <div id="results-section" class="hidden">
+      <div class="results-header">
+        <span id="results-label">Results</span>
+        <a id="results-run-link" href="#" target="_blank" class="run-link">View run →</a>
+      </div>
+
+      <div id="no-findings" class="no-findings hidden">
+        ✅ No vulnerabilities found above threshold.
+      </div>
+
+      <table id="findings-table" class="findings-table hidden">
+        <thead>
+          <tr>
+            <th>Package</th>
+            <th>Version</th>
+            <th>Severity</th>
+            <th>PR</th>
+          </tr>
+        </thead>
+        <tbody id="findings-body"></tbody>
+      </table>
+
+      <div class="results-meta">
+        <span id="results-meta-text"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Settings view (edit credentials) ──────────────────────────────────── -->
+  <section id="view-settings-edit" class="view hidden">
+    <h3>Settings</h3>
+
+    <div class="form-group">
+      <label for="edit-pat">GitHub PAT</label>
+      <input type="password" id="edit-pat" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+    </div>
+
+    <div class="form-group">
+      <label for="edit-worker">Cloudflare Worker URL</label>
+      <input type="url" id="edit-worker" placeholder="https://vuln-relay.your-name.workers.dev">
+    </div>
+
+    <div class="form-group">
+      <label for="edit-ext-token">Extension Token</label>
+      <input type="password" id="edit-ext-token" placeholder="EXTENSION_TOKEN secret">
+    </div>
+
+    <div class="btn-row">
+      <button id="btn-settings-save" class="btn-primary">Save</button>
+      <button id="btn-settings-cancel" class="btn-secondary">Cancel</button>
+    </div>
+    <div id="settings-msg" class="hidden"></div>
+  </section>
+
+  <script src="popup.js"></script>
+</body>
+</html>

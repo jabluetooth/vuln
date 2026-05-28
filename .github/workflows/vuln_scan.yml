@@ -5,8 +5,32 @@ on:
     - cron: '0 9 * * 1' # Every Monday at 9AM UTC
   workflow_dispatch:
     inputs:
+      # ── Extension-controlled inputs ──────────────────────────────────────────
+      # These are passed by the Chrome extension when triggering a scan.
+      # When triggered from the schedule or GitHub UI manually, defaults apply.
+      min_severity:
+        description: 'Minimum severity to patch (LOW/MODERATE/HIGH/CRITICAL)'
+        required: false
+        default: 'MODERATE'
+        type: choice
+        options: ['LOW', 'MODERATE', 'HIGH', 'CRITICAL']
+      cvss_threshold:
+        description: 'Minimum CVSS score (0 = disabled)'
+        required: false
+        default: '0'
+        type: string
+      package_denylist:
+        description: 'Comma-separated package names to skip'
+        required: false
+        default: ''
+        type: string
+      cve_denylist:
+        description: 'Comma-separated CVE/GHSA IDs to skip'
+        required: false
+        default: ''
+        type: string
       dry_run:
-        description: 'Dry run (log only, no PRs)'
+        description: 'Dry run — log only, open no PRs'
         required: false
         default: 'false'
         type: choice
@@ -47,44 +71,41 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           REPO_NAME: ${{ github.repository }}
 
-          # ── Filtering ────────────────────────────────────────────────────
-          MIN_SEVERITY: MODERATE
+          # ── Filtering ────────────────────────────────────────────────────────
+          # workflow_dispatch inputs take priority; schedule runs use the defaults.
+          MIN_SEVERITY:     ${{ github.event.inputs.min_severity     || 'MODERATE' }}
+          CVSS_THRESHOLD:   ${{ github.event.inputs.cvss_threshold   || '0' }}
+          PACKAGE_DENYLIST: ${{ github.event.inputs.package_denylist || '' }}
+          CVE_DENYLIST:     ${{ github.event.inputs.cve_denylist     || '' }}
+          DRY_RUN:          ${{ github.event.inputs.dry_run          || 'false' }}
+
           MAX_PRS_PER_RUN: '10'
 
-          # Phase 6 filters
-          # Comma-separated package names to never patch (e.g. "boto3,urllib3")
-          PACKAGE_DENYLIST: ''
-          # Comma-separated CVE / GHSA IDs to skip (e.g. "GHSA-xxxx-yyyy-zzzz")
-          CVE_DENYLIST: ''
-          # Minimum CVSS base score (0 = disabled, e.g. "7.0" for High+)
-          CVSS_THRESHOLD: '0'
           # Set to 'true' to skip packages already covered by an open Dependabot PR
           SKIP_DEPENDABOT: 'false'
 
-          # ── PR options ───────────────────────────────────────────────────
+          # ── PR options ───────────────────────────────────────────────────────
           # Labels added to every security PR (comma-separated)
           PR_LABELS: security,dependencies
           # GitHub usernames to request as reviewers (comma-separated, leave blank for none)
           PR_REVIEWERS: ''
           # Set to 'true' to auto-merge patch-level bumps when CI passes
           AUTO_MERGE_PATCH: 'false'
-          # Set to 'true' (or pass via workflow_dispatch input) for a no-op dry run
-          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
 
-          # ── GitHub Enterprise (leave blank for github.com) ────────────────
+          # ── GitHub Enterprise (leave blank for github.com) ────────────────────
           # GITHUB_API_URL: https://github.mycompany.com/api/v3
 
-          # ── Notifications (Phase 5) ──────────────────────────────────────
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          # ── Notifications (Phase 5) ──────────────────────────────────────────
+          SLACK_WEBHOOK_URL:  ${{ secrets.SLACK_WEBHOOK_URL }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
-          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+          SMTP_HOST:          ${{ secrets.SMTP_HOST }}
+          SMTP_PORT:          ${{ secrets.SMTP_PORT }}
+          SMTP_USER:          ${{ secrets.SMTP_USER }}
+          SMTP_PASS:          ${{ secrets.SMTP_PASS }}
+          ALERT_EMAIL:        ${{ secrets.ALERT_EMAIL }}
         run: python scanner/main.py
 
-      # ── Upload JSON scan report as artifact ──────────────────────────────
+      # ── Upload JSON scan report as artifact ────────────────────────────────────
       - name: Upload scan report
         if: always()
         uses: actions/upload-artifact@v4
@@ -97,7 +118,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 90
 
-      # ── Commit dashboard + history back to main so GitHub Pages can serve it
+      # ── Commit dashboard + history back to main so GitHub Pages can serve it ──
       - name: Commit dashboard and history
         if: always()
         run: |
