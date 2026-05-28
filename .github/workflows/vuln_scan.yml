@@ -44,3 +44,4 @@ jobs:
           PR_REVIEWERS: ''
           # Set to 'true' to auto-merge patch-level bumps when CI passes
           AUTO_MERGE_PATCH: 'false'
+        run: python scanner/main.py
