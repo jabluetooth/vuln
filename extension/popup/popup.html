@@ -18,47 +18,59 @@
     </div>
     <button id="btn-settings" class="icon-btn" title="Settings">
       <svg viewBox="0 0 16 16" fill="currentColor">
-        <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/>
         <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.892 3.433-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.892-1.64-.901-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159A1.873 1.873 0 0 0 7.03 1.945l.094-.319z"/>
       </svg>
     </button>
   </header>
 
-  <!-- ── Setup view (shown when PAT not configured) ──────────────────────────── -->
+  <!-- ── Setup view ─────────────────────────────────────────────────────────── -->
   <section id="view-setup" class="view hidden">
     <p class="setup-intro">Configure your credentials to get started.</p>
 
     <div class="form-group">
       <label for="input-pat">GitHub Personal Access Token</label>
       <input type="password" id="input-pat" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
-      <small>Needs <code>repo</code> scope. <a href="https://github.com/settings/tokens/new?scopes=repo&description=Vuln+Auto-Patcher" target="_blank">Create one →</a></small>
+      <small>Needs <code>repo</code> + <code>workflow</code> scopes (classic token).</small>
     </div>
 
     <div class="form-group">
-      <label for="input-worker">Cloudflare Worker URL</label>
+      <label for="input-workflow-repo">Central Scanner Repo</label>
+      <input type="text" id="input-workflow-repo" placeholder="jabluetooth/vuln">
+      <small>The repo where <code>vuln_scan.yml</code> is installed. Scans run here.</small>
+    </div>
+
+    <div class="form-group">
+      <label for="input-worker">Cloudflare Worker URL <span class="optional">(optional)</span></label>
       <input type="url" id="input-worker" placeholder="https://vuln-relay.your-name.workers.dev">
-      <small>Leave blank to use GitHub API polling (no instant results).</small>
+      <small>For instant result delivery. Leave blank to use polling.</small>
     </div>
 
     <div class="form-group">
-      <label for="input-ext-token">Extension Token</label>
-      <input type="password" id="input-ext-token" placeholder="Random secret you set in the Worker">
-      <small>Must match <code>EXTENSION_TOKEN</code> in your Worker secrets.</small>
+      <label for="input-ext-token">Extension Token <span class="optional">(optional)</span></label>
+      <input type="password" id="input-ext-token" placeholder="EXTENSION_TOKEN Worker secret">
     </div>
 
     <button id="btn-save-settings" class="btn-primary">Save &amp; Continue</button>
     <div id="setup-error" class="error hidden"></div>
   </section>
 
-  <!-- ── Scan view (normal state) ────────────────────────────────────────────── -->
+  <!-- ── Scan view ──────────────────────────────────────────────────────────── -->
   <section id="view-scan" class="view hidden">
 
-    <!-- Repo pill -->
+    <!-- Target repo pill: what's being scanned -->
     <div id="repo-pill" class="repo-pill">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
         <path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 9h8Z"/>
       </svg>
       <span id="repo-name">Not on a repo page</span>
+    </div>
+
+    <!-- Via pill: shown when target ≠ workflow repo -->
+    <div id="via-pill" class="via-pill hidden">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+      </svg>
+      via <span id="workflow-repo-display"></span>
     </div>
 
     <!-- Scan settings -->
@@ -96,7 +108,7 @@
 
     <button id="btn-scan" class="btn-primary">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-        <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zm.75 3.25a.75.75 0 0 0-1.5 0v3l1.5 1.5a.75.75 0 0 0 1.06-1.06L8.75 8.44V5.75z"/>
+        <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm.75 4.75a.75.75 0 0 0-1.5 0v3l1.5 1.5a.75.75 0 0 0 1.06-1.06L8.75 8.44V5.75z"/>
       </svg>
       Run Scan
     </button>
@@ -110,7 +122,7 @@
       </div>
     </div>
 
-    <!-- Results table -->
+    <!-- Results -->
     <div id="results-section" class="hidden">
       <div class="results-header">
         <span id="results-label">Results</span>
@@ -139,23 +151,30 @@
     </div>
   </section>
 
-  <!-- ── Settings view (edit credentials) ──────────────────────────────────── -->
+  <!-- ── Settings edit view ─────────────────────────────────────────────────── -->
   <section id="view-settings-edit" class="view hidden">
     <h3>Settings</h3>
 
     <div class="form-group">
       <label for="edit-pat">GitHub PAT</label>
       <input type="password" id="edit-pat" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+      <small>Classic token with <code>repo</code> + <code>workflow</code> scopes.</small>
     </div>
 
     <div class="form-group">
-      <label for="edit-worker">Cloudflare Worker URL</label>
+      <label for="edit-workflow-repo">Central Scanner Repo</label>
+      <input type="text" id="edit-workflow-repo" placeholder="jabluetooth/vuln">
+      <small>The repo that runs <code>vuln_scan.yml</code>. All scans dispatch here.</small>
+    </div>
+
+    <div class="form-group">
+      <label for="edit-worker">Cloudflare Worker URL <span class="optional">(optional)</span></label>
       <input type="url" id="edit-worker" placeholder="https://vuln-relay.your-name.workers.dev">
     </div>
 
     <div class="form-group">
-      <label for="edit-ext-token">Extension Token</label>
-      <input type="password" id="edit-ext-token" placeholder="EXTENSION_TOKEN secret">
+      <label for="edit-ext-token">Extension Token <span class="optional">(optional)</span></label>
+      <input type="password" id="edit-ext-token" placeholder="EXTENSION_TOKEN Worker secret">
     </div>
 
     <div class="btn-row">

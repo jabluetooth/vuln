@@ -6,7 +6,7 @@ compatibility_date = "2024-01-01"
 # then paste the returned id below
 [[kv_namespaces]]
 binding = "SCAN_RESULTS"
-id      = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+id      = "889560658c354adbba711c4ee6f82368"
 
 # Secrets (set with wrangler secret put <NAME>):
 #   WEBHOOK_SECRET    — random 32-char string, also set in GitHub webhook

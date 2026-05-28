@@ -303,6 +303,30 @@ input[type="checkbox"] {
   font-size: 12px;
 }
 
+/* ── Via pill ─────────────────────────────────────────────────────────────── */
+
+.via-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #57606a;
+  margin-top: -8px;
+  margin-bottom: 10px;
+  padding-left: 4px;
+}
+
+.via-pill svg { color: #8c959f; flex-shrink: 0; }
+
+/* ── Optional label ───────────────────────────────────────────────────────── */
+
+.optional {
+  font-weight: 400;
+  color: #8c959f;
+  font-size: 11px;
+  margin-left: 3px;
+}
+
 /* ── Settings edit view ───────────────────────────────────────────────────── */
 
 #view-settings-edit h3 {

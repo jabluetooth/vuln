@@ -140,20 +140,20 @@ def is_patch_bump(old_version: str, new_version: str) -> bool:
 
 # ── Git helpers ───────────────────────────────────────────────────────────────
 
-def git_setup():
+def git_setup(cwd: str | None = None):
     try:
-        subprocess.run(["git", "config", "user.email", "vuln-patcher-bot@noreply.github.com"], check=True)
-        subprocess.run(["git", "config", "user.name",  "Vuln Auto-Patcher Bot"], check=True)
+        subprocess.run(["git", "config", "user.email", "vuln-patcher-bot@noreply.github.com"], check=True, cwd=cwd)
+        subprocess.run(["git", "config", "user.name",  "Vuln Auto-Patcher Bot"], check=True, cwd=cwd)
         logger.info("Git identity configured.")
     except subprocess.CalledProcessError as e:
         logger.error("Failed to configure git identity: %s", e)
         raise
 
 
-def branch_exists_on_remote(branch_name: str) -> bool:
+def branch_exists_on_remote(branch_name: str, cwd: str | None = None) -> bool:
     result = subprocess.run(
         ["git", "ls-remote", "--heads", "origin", branch_name],
-        capture_output=True, text=True
+        capture_output=True, text=True, cwd=cwd,
     )
     return branch_name in result.stdout
 
@@ -164,27 +164,32 @@ def create_branch_and_commit(
     package_name: str,
     new_version: str,
     default_branch: str = "main",
+    cwd: str | None = None,
 ) -> bool:
     """Create branch, commit, push. Returns False if branch already exists."""
-    if branch_exists_on_remote(branch_name):
+    if branch_exists_on_remote(branch_name, cwd=cwd):
         logger.info("Branch '%s' already exists on remote — skipping.", branch_name)
         return False
 
+    # git add requires a path relative to the repo root
+    import os as _os
+    git_filepath = _os.path.relpath(filepath, cwd) if cwd else filepath
+
     try:
-        subprocess.run(["git", "checkout", "-b", branch_name], check=True)
-        subprocess.run(["git", "add", filepath], check=True)
+        subprocess.run(["git", "checkout", "-b", branch_name], check=True, cwd=cwd)
+        subprocess.run(["git", "add", git_filepath], check=True, cwd=cwd)
         subprocess.run(
             ["git", "commit", "-m",
              f"fix(deps): bump {package_name} to {new_version} (security patch)"],
-            check=True
+            check=True, cwd=cwd,
         )
-        subprocess.run(["git", "push", "origin", branch_name], check=True)
+        subprocess.run(["git", "push", "origin", branch_name], check=True, cwd=cwd)
         logger.info("Pushed branch '%s'.", branch_name)
         return True
     except subprocess.CalledProcessError as e:
         logger.error("Git operation failed on branch '%s': %s", branch_name, e)
-        subprocess.run(["git", "checkout", default_branch], check=False)
-        subprocess.run(["git", "branch", "-D", branch_name], check=False)
+        subprocess.run(["git", "checkout", default_branch], check=False, cwd=cwd)
+        subprocess.run(["git", "branch", "-D", branch_name], check=False, cwd=cwd)
         return False
 
 

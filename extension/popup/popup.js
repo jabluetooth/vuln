@@ -2,7 +2,8 @@
 
 // ── State ──────────────────────────────────────────────────────────────────────
 
-let currentRepo = null  // "owner/repo" of the active GitHub tab
+let currentRepo  = null  // "owner/repo" of the active GitHub tab
+let workflowRepo = null  // "owner/repo" of the central scanner repo
 
 // ── Boot ───────────────────────────────────────────────────────────────────────
 
@@ -21,12 +22,15 @@ async function init() {
   document.getElementById('repo-name').textContent = currentRepo || 'Not on a repo page'
 
   // Check if credentials are configured
-  const { github_pat } = await chrome.storage.sync.get('github_pat')
-  if (!github_pat) {
+  const stored = await chrome.storage.sync.get(['github_pat', 'workflow_repo'])
+  workflowRepo = stored.workflow_repo?.trim() || null
+
+  if (!stored.github_pat || !workflowRepo) {
     showView('setup')
     return
   }
 
+  updateViaPill()
   showView('scan')
 
   if (currentRepo) {
@@ -59,6 +63,19 @@ async function detectRepo() {
   return null
 }
 
+// ── Via pill ───────────────────────────────────────────────────────────────────
+
+function updateViaPill() {
+  const pill = document.getElementById('via-pill')
+  const display = document.getElementById('workflow-repo-display')
+  if (workflowRepo && currentRepo && currentRepo !== workflowRepo) {
+    display.textContent = workflowRepo
+    pill.classList.remove('hidden')
+  } else {
+    pill.classList.add('hidden')
+  }
+}
+
 // ── Settings toggle ────────────────────────────────────────────────────────────
 
 function bindSettingsToggle() {
@@ -69,11 +86,14 @@ function bindSettingsToggle() {
       return
     }
     // Pre-fill from storage
-    const stored = await chrome.storage.sync.get(['github_pat', 'worker_url', 'extension_token'])
-    document.getElementById('edit-pat').value        = stored.github_pat       || ''
-    document.getElementById('edit-worker').value    = stored.worker_url       || ''
-    document.getElementById('edit-ext-token').value = stored.extension_token  || ''
-    document.getElementById('settings-msg').className = 'hidden'
+    const stored = await chrome.storage.sync.get([
+      'github_pat', 'workflow_repo', 'worker_url', 'extension_token',
+    ])
+    document.getElementById('edit-pat').value           = stored.github_pat      || ''
+    document.getElementById('edit-workflow-repo').value = stored.workflow_repo   || ''
+    document.getElementById('edit-worker').value        = stored.worker_url      || ''
+    document.getElementById('edit-ext-token').value     = stored.extension_token || ''
+    document.getElementById('settings-msg').className   = 'hidden'
     showView('settings-edit')
   })
 
@@ -87,18 +107,35 @@ function bindSettingsToggle() {
 function bindSettingsForm() {
   // First-time setup form
   document.getElementById('btn-save-settings').addEventListener('click', async () => {
-    const pat    = document.getElementById('input-pat').value.trim()
-    const worker = document.getElementById('input-worker').value.trim()
-    const token  = document.getElementById('input-ext-token').value.trim()
-    const errEl  = document.getElementById('setup-error')
+    const pat          = document.getElementById('input-pat').value.trim()
+    const wfRepo       = document.getElementById('input-workflow-repo').value.trim()
+    const worker       = document.getElementById('input-worker').value.trim()
+    const token        = document.getElementById('input-ext-token').value.trim()
+    const errEl        = document.getElementById('setup-error')
 
     if (!pat) {
       showError(errEl, 'GitHub PAT is required.')
       return
     }
+    if (!wfRepo) {
+      showError(errEl, 'Central Scanner Repo is required (e.g. jabluetooth/vuln).')
+      return
+    }
+    if (!wfRepo.includes('/')) {
+      showError(errEl, 'Central Scanner Repo must be in "owner/repo" format.')
+      return
+    }
 
-    await chrome.storage.sync.set({ github_pat: pat, worker_url: worker, extension_token: token })
+    await chrome.storage.sync.set({
+      github_pat:      pat,
+      workflow_repo:   wfRepo,
+      worker_url:      worker,
+      extension_token: token,
+    })
+
+    workflowRepo = wfRepo
     errEl.classList.add('hidden')
+    updateViaPill()
     showView('scan')
     await refreshStatus()
   })
@@ -106,6 +143,7 @@ function bindSettingsForm() {
   // Edit settings form
   document.getElementById('btn-settings-save').addEventListener('click', async () => {
     const pat    = document.getElementById('edit-pat').value.trim()
+    const wfRepo = document.getElementById('edit-workflow-repo').value.trim()
     const worker = document.getElementById('edit-worker').value.trim()
     const token  = document.getElementById('edit-ext-token').value.trim()
     const msgEl  = document.getElementById('settings-msg')
@@ -115,8 +153,26 @@ function bindSettingsForm() {
       msgEl.className   = 'error'
       return
     }
+    if (!wfRepo) {
+      msgEl.textContent = 'Central Scanner Repo is required.'
+      msgEl.className   = 'error'
+      return
+    }
+    if (!wfRepo.includes('/')) {
+      msgEl.textContent = 'Central Scanner Repo must be in "owner/repo" format.'
+      msgEl.className   = 'error'
+      return
+    }
 
-    await chrome.storage.sync.set({ github_pat: pat, worker_url: worker, extension_token: token })
+    await chrome.storage.sync.set({
+      github_pat:      pat,
+      workflow_repo:   wfRepo,
+      worker_url:      worker,
+      extension_token: token,
+    })
+
+    workflowRepo = wfRepo
+    updateViaPill()
     msgEl.textContent = 'Saved!'
     msgEl.className   = 'success'
     setTimeout(() => showView('scan'), 800)
@@ -167,18 +223,29 @@ function bindScanForm() {
       setStatus('error', '⚠️', 'No repo detected', 'Navigate to a GitHub repository first.')
       return
     }
+    if (!workflowRepo) {
+      setStatus('error', '⚠️', 'Not configured', 'Open Settings and set your Central Scanner Repo.')
+      return
+    }
 
     const settings = collectSettings()
     // Save settings as defaults for next time
     await chrome.storage.sync.set({ default_settings: settings })
 
-    setStatus('running', '⏳', 'Triggering workflow…', 'Sending dispatch to GitHub Actions.')
+    setStatus('running', '⏳', 'Triggering workflow…', `Dispatching to ${workflowRepo}…`)
     document.getElementById('btn-scan').disabled = true
 
     try {
-      const response = await sendToServiceWorker({ action: 'start_scan', repo: currentRepo, settings })
+      const response = await sendToServiceWorker({
+        action:      'start_scan',
+        target_repo: currentRepo,
+        settings,
+      })
       if (response.success) {
-        setStatus('running', '⏳', 'Workflow running', `Run #${response.run_id} · checking every 15s…`)
+        setStatus(
+          'running', '⏳', 'Workflow running',
+          `Run #${response.run_id} on ${workflowRepo} · checking every 15s…`,
+        )
       } else {
         setStatus('error', '❌', 'Failed to start scan', response.error)
         document.getElementById('btn-scan').disabled = false

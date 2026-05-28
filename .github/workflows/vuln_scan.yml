@@ -5,11 +5,16 @@ on:
     - cron: '0 9 * * 1' # Every Monday at 9AM UTC
   workflow_dispatch:
     inputs:
-      # ── Extension-controlled inputs ──────────────────────────────────────────
-      # These are passed by the Chrome extension when triggering a scan.
-      # When triggered from the schedule or GitHub UI manually, defaults apply.
+      # ── Target repo (set by Chrome extension when scanning another repo) ──────
+      target_repo:
+        description: 'Repo to scan (owner/repo). Leave blank to scan this repo.'
+        required: false
+        default: ''
+        type: string
+
+      # ── Scan settings (all overridable from the Chrome extension) ─────────────
       min_severity:
-        description: 'Minimum severity to patch (LOW/MODERATE/HIGH/CRITICAL)'
+        description: 'Minimum severity (LOW/MODERATE/HIGH/CRITICAL)'
         required: false
         default: 'MODERATE'
         type: choice
@@ -45,9 +50,10 @@ jobs:
       pages: write
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout central scanner
+        uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # needed for git push of dashboard
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -65,14 +71,49 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      # ── Resolve scan target ──────────────────────────────────────────────────
+      # When target_repo is set (and differs from this repo), clone it.
+      # SCAN_ROOT and REPO_NAME are written to $GITHUB_ENV so subsequent steps
+      # pick them up automatically.
+      - name: Resolve scan target
+        env:
+          SCANNER_PAT: ${{ secrets.SCANNER_PAT }}
+        run: |
+          TARGET="${{ github.event.inputs.target_repo }}"
+          SELF="${{ github.repository }}"
+
+          if [ -n "$TARGET" ] && [ "$TARGET" != "$SELF" ]; then
+            echo "Scanning remote repo: $TARGET"
+
+            if [ -z "$SCANNER_PAT" ]; then
+              echo "::error::SCANNER_PAT secret is required to scan a remote repository."
+              echo "Add a classic PAT with 'repo' and 'workflow' scopes as the SCANNER_PAT secret."
+              exit 1
+            fi
+
+            git clone \
+              "https://x-access-token:${SCANNER_PAT}@github.com/${TARGET}.git" \
+              /tmp/target-repo
+
+            echo "SCAN_ROOT=/tmp/target-repo" >> $GITHUB_ENV
+            echo "REPO_NAME=${TARGET}"        >> $GITHUB_ENV
+            echo "USE_SCANNER_PAT=true"       >> $GITHUB_ENV
+          else
+            echo "Scanning self: $SELF"
+            echo "SCAN_ROOT=."                >> $GITHUB_ENV
+            echo "REPO_NAME=${SELF}"          >> $GITHUB_ENV
+            echo "USE_SCANNER_PAT=false"      >> $GITHUB_ENV
+          fi
+
       - name: Run vulnerability scanner
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Token: use SCANNER_PAT for cross-repo PRs, GITHUB_TOKEN for self
+          GITHUB_TOKEN: ${{ env.USE_SCANNER_PAT == 'true' && secrets.SCANNER_PAT || secrets.GITHUB_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          REPO_NAME: ${{ github.repository }}
 
-          # ── Filtering ────────────────────────────────────────────────────────
-          # workflow_dispatch inputs take priority; schedule runs use the defaults.
+          # REPO_NAME and SCAN_ROOT are set dynamically by the previous step
+
+          # ── Filtering ──────────────────────────────────────────────────────
           MIN_SEVERITY:     ${{ github.event.inputs.min_severity     || 'MODERATE' }}
           CVSS_THRESHOLD:   ${{ github.event.inputs.cvss_threshold   || '0' }}
           PACKAGE_DENYLIST: ${{ github.event.inputs.package_denylist || '' }}
@@ -80,32 +121,27 @@ jobs:
           DRY_RUN:          ${{ github.event.inputs.dry_run          || 'false' }}
 
           MAX_PRS_PER_RUN: '10'
-
-          # Set to 'true' to skip packages already covered by an open Dependabot PR
           SKIP_DEPENDABOT: 'false'
 
-          # ── PR options ───────────────────────────────────────────────────────
-          # Labels added to every security PR (comma-separated)
+          # ── PR options ──────────────────────────────────────────────────────
           PR_LABELS: security,dependencies
-          # GitHub usernames to request as reviewers (comma-separated, leave blank for none)
           PR_REVIEWERS: ''
-          # Set to 'true' to auto-merge patch-level bumps when CI passes
           AUTO_MERGE_PATCH: 'false'
 
-          # ── GitHub Enterprise (leave blank for github.com) ────────────────────
+          # ── GitHub Enterprise ───────────────────────────────────────────────
           # GITHUB_API_URL: https://github.mycompany.com/api/v3
 
-          # ── Notifications (Phase 5) ──────────────────────────────────────────
-          SLACK_WEBHOOK_URL:  ${{ secrets.SLACK_WEBHOOK_URL }}
+          # ── Notifications ───────────────────────────────────────────────────
+          SLACK_WEBHOOK_URL:   ${{ secrets.SLACK_WEBHOOK_URL }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          SMTP_HOST:          ${{ secrets.SMTP_HOST }}
-          SMTP_PORT:          ${{ secrets.SMTP_PORT }}
-          SMTP_USER:          ${{ secrets.SMTP_USER }}
-          SMTP_PASS:          ${{ secrets.SMTP_PASS }}
-          ALERT_EMAIL:        ${{ secrets.ALERT_EMAIL }}
+          SMTP_HOST:           ${{ secrets.SMTP_HOST }}
+          SMTP_PORT:           ${{ secrets.SMTP_PORT }}
+          SMTP_USER:           ${{ secrets.SMTP_USER }}
+          SMTP_PASS:           ${{ secrets.SMTP_PASS }}
+          ALERT_EMAIL:         ${{ secrets.ALERT_EMAIL }}
         run: python scanner/main.py
 
-      # ── Upload JSON scan report as artifact ────────────────────────────────────
+      # ── Upload artifacts ─────────────────────────────────────────────────────
       - name: Upload scan report
         if: always()
         uses: actions/upload-artifact@v4
@@ -118,7 +154,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 90
 
-      # ── Commit dashboard + history back to main so GitHub Pages can serve it ──
+      # ── Commit dashboard back to the central scanner repo ────────────────────
       - name: Commit dashboard and history
         if: always()
         run: |
