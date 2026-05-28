@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>jabluetooth/vuln — Vulnerability Dashboard</title>
+<title>jabluetooth/bonny-ai — Vulnerability Dashboard</title>
 <style>
   *{box-sizing:border-box}
   body{font-family:system-ui,-apple-system,sans-serif;max-width:1000px;margin:2rem auto;
@@ -31,11 +31,11 @@
 </style>
 </head>
 <body>
-<h1>🔐 jabluetooth/vuln — Vulnerability Dashboard</h1>
+<h1>🔐 jabluetooth/bonny-ai — Vulnerability Dashboard</h1>
 
 <div class="stats">
   <div class="stat">
-    <div class="num">0</div>
+    <div class="num">1</div>
     <div class="lbl">Open CVEs</div>
   </div>
   <div class="stat">
@@ -47,13 +47,13 @@
     <div class="lbl">Avg MTTR (hrs)</div>
   </div>
   <div class="stat">
-    <div class="num">0</div>
+    <div class="num">1</div>
     <div class="lbl">Total Tracked</div>
   </div>
 </div>
 
 <h2>Open Vulnerabilities by Severity</h2>
-<p>No open vulnerabilities 🎉</p>
+<div class="bar-row"><span class="bar-label">MODERATE</span><div class="bar" style="background:#e4e669;width:24px"></div><span class="bar-count">1</span></div>
 
 <h2>Vulnerability History</h2>
 <table>
@@ -63,9 +63,9 @@
     <th>First Seen</th><th>Status</th><th>MTTR (hrs)</th>
   </tr>
 </thead>
-<tbody></tbody>
+<tbody><tr><td>ws</td><td><a href="https://github.com/advisories/GHSA-58qx-3vcg-4xpx" target="_blank">GHSA-58qx-3vcg-4xpx</a></td><td>MODERATE</td><td>2026-05-28</td><td><span class="open">⏳ Open</span></td><td>None</td></tr></tbody>
 </table>
 
-<p class="updated">Last updated: 2026-05-28 08:44 UTC</p>
+<p class="updated">Last updated: 2026-05-28 09:13 UTC</p>
 </body>
 </html>

@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "repo": "jabluetooth/bonny-ai",
+    "package": "ws",
+    "cve_id": "GHSA-58qx-3vcg-4xpx",
+    "severity": "MODERATE",
+    "old_version": "8.18.3",
+    "new_version": "8.20.1",
+    "pr_url": "https://github.com/jabluetooth/bonny-ai/pull/3",
+    "first_seen": "2026-05-28T09:13:21.818714+00:00",
+    "resolved_at": null,
+    "mttr_hours": null
+  }
+]
