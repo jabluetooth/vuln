@@ -4,6 +4,18 @@ A GitHub Actions bot that automatically scans your dependencies for known CVEs,
 generates plain-English explanations using AI, and opens pull requests with the
 patched version - making security proactive, not reactive.
 
+![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2671E5?style=for-the-badge&logo=githubactions&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Gemini](https://img.shields.io/badge/Gemini-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white)
+
+<br>
+
+<!-- HERO: screenshot of an actual pull request this bot opened - the PR description
+     is the real "product" here (the plain-English CVE explanation + the version bump),
+     so a screenshot of that PR view on GitHub is the single best proof this works.
+     Save as docs/example-pr.png, add here as: -->
+<!-- <p align="center"><img src="docs/example-pr.png" alt="Example auto-patch PR" width="800"></p> -->
+
 ---
 
 ## Quick Setup
@@ -87,6 +99,17 @@ Uses **Google Gemini 2.0 Flash** (free tier - no credit card required).
 Get your free API key at [aistudio.google.com](https://aistudio.google.com).
 
 ---
+
+## About the developer
+
+**Fil Heinz O. Re La Torre** - Automation & AI Solutions Engineer, building integrations and AI-backed workflows that go from idea to production in days.
+
+[![Portfolio](https://img.shields.io/badge/Portfolio-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://www.filheinzrelatorre.com)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://ph.linkedin.com/in/filheinzrelatorre)
+[![GitHub](https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/jabluetooth)
+[![Gmail](https://img.shields.io/badge/Gmail-D14836?style=for-the-badge&logo=gmail&logoColor=white)](mailto:filheinz27@gmail.com)
+
+**Other projects:** [Match](https://github.com/jabluetooth/match) · [ZeroPress](https://github.com/jabluetooth/zeropress) · [Mimo](https://github.com/jabluetooth/mimo) · [Insight](https://github.com/jabluetooth/insight) · [see all →](https://github.com/jabluetooth)
 
 ## License
 
